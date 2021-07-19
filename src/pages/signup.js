@@ -2,6 +2,7 @@ import { useState, useContext, useEffect } from 'react';
 import { Link, useHistory } from 'react-router-dom';
 import FirebaseContext from '../context/firebase';
 import * as ROUTES from '../constants/routes';
+import { doesUsernameExist } from '../services/firebase';
 
 export default function Signup() {
   const history = useHistory();
@@ -17,6 +18,39 @@ export default function Signup() {
 
   const handleSignup = async (event) => {
     event.preventDefault();
+
+    const usernameExists = await doesUsernameExist(username);
+    if (!usernameExists) {
+      try {
+        const createdUserResult = await firebase
+          .auth()
+          .createUserWithEmailAndPassword(emailAddress, password);
+
+        await createdUserResult.user.updateProfile({
+          displayName: username
+        });
+
+        await firebase.firestore().collection('users').add({
+          userId: createdUserResult.user.uid,
+          username: username.toLowerCase(),
+          fullName,
+          emailAddress: emailAddress.toLowerCase(),
+          following: [],
+          followers: [],
+          dateCreated: Date.now()
+        });
+
+        history.push(ROUTES.DASHBOARD);
+      } catch (error) {
+        setFullName('');
+        setEmailAddress('');
+        setPassword('');
+        setError(error.message);
+      }
+    } else {
+      setUsername('');
+      setError('That username is already taken, please try another.');
+    }
   };
 
   useEffect(() => {
@@ -42,7 +76,7 @@ export default function Signup() {
 
           <form onSubmit={handleSignup} method="POST">
             <input
-              aria-label="Enter your email username"
+              aria-label="Enter your username"
               type="text"
               placeholder="Username"
               className="text-sm text-gray-base w-full mr-3 py-5 px-4 h-2 border border-gray-primary rounded mb-2"
